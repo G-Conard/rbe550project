@@ -10,9 +10,9 @@ mailbox with number
 
 
 Tasks:
-- "check mail": find number on mailbox
-- "check juice": go to juice bottle on table or counter and check level
-- "check trash": in kitchen
-- "check medicine": in bedroom
+- "check mail": find number on mailbox +
+- "check juice": go to juice bottle on table or counter and check level  +
+- "check trash": in kitchen +
+- "check medicine": in bedroom +
 - "check book": on shelf in living room
 -

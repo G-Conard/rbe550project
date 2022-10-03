@@ -2,7 +2,7 @@
 
 # You may need to import some classes of the controller module. Ex:
 #  from controller import Robot, Motor, DistanceSensor
-from controller import Robot, Motor, Camera, LED
+from controller import Robot, Motor, Camera, LED, Lidar
 import math
 
 # create the Robot instance.
@@ -22,6 +22,7 @@ motorNames = [
   'rear right shoulder abduction motor',  'rear right shoulder rotation motor',  'rear right elbow motor'];
 for i in range(12):
     motors.append(robot.getDevice(motorNames[i]))
+    motors[i].setPosition(0)
 
     
 cameras = []
@@ -39,6 +40,13 @@ for i in range(8):
     leds.append(robot.getDevice(ledNames[i]))
     leds[i].set(1)
 
+lidar = []
+lidarName =['Velodyne Puck']
+lidar.append(robot.getDevice(lidarName[0]))
+lidar[0].enable(timestep)
+lidar[0].enablePointCloud()
+resolution = lidar[0].getHorizontalResolution()
+layers = lidar[0].getNumberOfLayers()
 
 
 # Movement decomposition
@@ -102,8 +110,8 @@ while robot.step(timestep) != -1:
     
     
     
-    lie_down(4.0)
+    # lie_down(4.0)
     stand_up(4.0)
-    lie_down(4.0)
+    # lie_down(4.0)
 
 # Enter here exit cleanup code.

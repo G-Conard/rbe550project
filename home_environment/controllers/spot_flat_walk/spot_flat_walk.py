@@ -19,6 +19,12 @@ timestep = int(robot.getBasicTimeStep())
 NUMBER_OF_JOINTS = 12
 
 # INIT MOTORS
+motors_initial_pos = [
+  0.001, -0.5185, 1.21,
+  0.001, -0.5185, 1.21,
+  0.001, -0.5185, 1.21,
+  0.001, -0.5185, 1.21,
+]
 motors = [];
 motorNames = [
   'front left shoulder abduction motor',  'front left shoulder rotation motor',  'front left elbow motor',
@@ -27,6 +33,7 @@ motorNames = [
   'rear right shoulder abduction motor',  'rear right shoulder rotation motor',  'rear right elbow motor'];
 for i in range(12):
     motors.append(robot.getDevice(motorNames[i]))
+    motors[i].setPosition(motors_initial_pos[i])
     motors[i].setPosition(0)
 
 # INIT CAMERAS
@@ -72,13 +79,6 @@ T_bf0 = spot.WorldToFoot
 T_bf = copy.deepcopy(T_bf0)
 bzg = BezierGait(dt=robot.timestep/1000)
 
-motors_initial_pos = [
-0.001, -0.5185, 1.21,
-0.001, -0.5185, 1.21,
-0.001, -0.5185, 1.21,
-0.001, -0.5185, 1.21,
-]
-
 # ------------------ Inputs for Bezier Gait control ----------------
 xd = 0.0
 yd = 0.0
@@ -116,7 +116,7 @@ chattering_rear_left_lower_leg_contact = 0
 chattering_rear_right_lower_leg_contact = 0
 lim_chattering = 4
 
-# Movement decomposition
+# JOINT MOVEMENT DECOMPOSITION
 def movement_decomposition(target, duration):
   timestep = int(robot.getBasicTimeStep())
   # print(timestep)
@@ -169,7 +169,7 @@ def fr_ground_contact(data):
       front_right_lower_leg_contact = 1
       chattering_front_right_lower_leg_contact = 0
 
-def rl_leg_contact(data):
+def rl_ground_contact(data):
   if data == 0:
       chattering_rear_left_lower_leg_contact += 1
       if chattering_rear_left_lower_leg_contact > lim_chattering:
@@ -199,8 +199,8 @@ def step():
   yaw_inst = spot_rot_val[2]
 
 def setMotorPositions(motors_target_pos):
-  for idx, motor in enumerate(motors):
-    motor.setPosition(motors_target_pos[idx] - motors_initial_pos[idx])
+  for i, motor in enumerate(motors):
+    motor.setPosition(motors_target_pos[i] - motors_initial_pos[i])
 
 def yaw_control():
   """ Yaw body controller"""
@@ -214,7 +214,7 @@ def yaw_control():
     yawrate_d = 4.0 * np.sqrt(abs(residual)) * np.sign(residual)
   return yawrate_d
 
-def spot_inverse_control(pos, orn):
+def inverse_control(pos, orn):
   # yaw controller
   if YawControlOn == 1.0:
     YawRate_desired = yaw_control()
@@ -247,20 +247,31 @@ def spot_inverse_control(pos, orn):
 
   setMotorPositions(target)
 
-# Main loop:
-# - perform simulation steps until Webots is stopping the controller
-while True:
-    #TODO: SET DESIRED POSE
+# MAIN METHOD
+def main():
+  # SIM LOOP
+  while True:
+    # SET DESIRED POSE
+    xd=0
+    yd=0
+    zd=0
+    rolld=0
+    pitchd=0
+    yawd=0
     pos = np.array([xd, yd, zd])
     orn = np.array([rolld, pitchd, yawd])
 
     # CHECK GROUND CONTACTS
     fl_ground_contact(bool(touch_fl.getValue()))
     fr_ground_contact(bool(touch_fr.getValue()))
-    rl_leg_contact(bool(touch_rl.getValue()))
+    rl_ground_contact(bool(touch_rl.getValue()))
     rr_ground_contact(bool(touch_rr.getValue()))
 
-    # CALL INVERSE KINEMATIC CONTROL ON DESIRED POSE
-    spot_inverse_control(pos,orn)
+    # CALL INVERSE CONTROL ON DESIRED POSE
+    inverse_control(pos,orn)
 
+    # STEP THE SIMULATION FRWD
     step()
+
+if __name__=='__main__':
+  main()

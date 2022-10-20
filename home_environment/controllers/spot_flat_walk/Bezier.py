@@ -1,5 +1,5 @@
 import numpy as np
-from webots_spot.LieAlgebra import TransToRp
+from LieAlgebra import TransToRp
 import copy
 
 STANCE = 0

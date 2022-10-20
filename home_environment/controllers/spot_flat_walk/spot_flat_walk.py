@@ -3,7 +3,11 @@
 # You may need to import some classes of the controller module. Ex:
 #  from controller import Robot, Motor, DistanceSensor
 from controller import Robot, Motor, Camera, LED, Lidar
-import math
+import math, copy
+import numpy as np
+
+from SpotKinematics import SpotModel
+from Bezier import BezierGait
 
 # create the Robot instance.
 robot = Robot()
@@ -14,6 +18,7 @@ timestep = int(robot.getBasicTimeStep())
 # Initialize the robot's information
 NUMBER_OF_JOINTS = 12
 
+# INIT MOTORS
 motors = [];
 motorNames = [
   'front left shoulder abduction motor',  'front left shoulder rotation motor',  'front left elbow motor',
@@ -24,14 +29,14 @@ for i in range(12):
     motors.append(robot.getDevice(motorNames[i]))
     motors[i].setPosition(0)
 
-    
+# INIT CAMERAS
 cameras = []
 cameraNames = ['left head camera', 'right head camera', 'left flank camera', 'right flank camera', 'rear camera'];
 for i in range(5):
     cameras.append(robot.getDevice(cameraNames[i]))
     cameras[i].enable(2 * timestep)
 
-
+# INIT LEDs
 leds = []
 ledNames = ['left top led', 'left middle up led', 'left middle down led',
             'left bottom led', 'right top led', 'right middle up led',
@@ -40,6 +45,7 @@ for i in range(8):
     leds.append(robot.getDevice(ledNames[i]))
     leds[i].set(1)
 
+# INIT LIDAR
 lidar = []
 lidarName =['Velodyne Puck']
 lidar.append(robot.getDevice(lidarName[0]))
@@ -48,6 +54,67 @@ lidar[0].enablePointCloud()
 resolution = lidar[0].getHorizontalResolution()
 layers = lidar[0].getNumberOfLayers()
 
+# INIT CONTACT SENSORS
+touch_fl = robot.getDevice("front left touch sensor")
+touch_fr = robot.getDevice("front right touch sensor")
+touch_rl = robot.getDevice("rear left touch sensor")
+touch_rr = robot.getDevice("rear right touch sensor")
+
+touch_fl.enable(timestep)
+touch_fr.enable(timestep)
+touch_rl.enable(timestep)
+touch_rr.enable(timestep)
+
+## Spot Control
+spot = SpotModel()
+spot_node=robot.getFromDef("Spot")
+T_bf0 = spot.WorldToFoot
+T_bf = copy.deepcopy(T_bf0)
+bzg = BezierGait(dt=robot.timestep/1000)
+
+motors_initial_pos = [
+0.001, -0.5185, 1.21,
+0.001, -0.5185, 1.21,
+0.001, -0.5185, 1.21,
+0.001, -0.5185, 1.21,
+]
+
+# ------------------ Inputs for Bezier Gait control ----------------
+xd = 0.0
+yd = 0.0
+zd = 0.0
+rolld = 0.0
+pitchd = 0.0
+yawd = 0.0
+StepLength = 0.0
+LateralFraction = 0.0
+YawRate = 0.0
+StepVelocity = 0.0
+ClearanceHeight = 0.0
+PenetrationDepth = 0.0
+SwingPeriod = 0.0
+YawControl = 0.0
+YawControlOn = False
+
+# ------------------ Spot states ----------------
+x_inst = 0.
+y_inst = 0.
+z_inst = 0.
+roll_inst = 0.
+pitch_inst = 0.
+yaw_inst = 0.
+search_index = -1
+
+# ------------------ Outputs of Contact sensors ----------------
+front_left_lower_leg_contact = 1
+front_right_lower_leg_contact = 1
+rear_left_lower_leg_contact = 1
+rear_right_lower_leg_contact = 1
+chattering_front_left_lower_leg_contact = 0
+chattering_front_right_lower_leg_contact = 0
+chattering_rear_left_lower_leg_contact = 0
+chattering_rear_right_lower_leg_contact = 0
+lim_chattering = 4
 
 # Movement decomposition
 def movement_decomposition(target, duration):
@@ -68,8 +135,6 @@ def movement_decomposition(target, duration):
       motors[j].setPosition(current_position[j])
       # print(j,current_position[j])
     step()
-    
-    # step();
 
 def lie_down(duration):
   motors_target_pos= [-0.40, -0.99, 1.59,   # Front left leg
@@ -77,7 +142,6 @@ def lie_down(duration):
                       -0.40, -0.99, 1.59,   # Rear left leg
                       0.40,  -0.99, 1.59]  # Rear right leg
   movement_decomposition(motors_target_pos, duration)
-
 
 def stand_up(duration):
   motors_target_pos = [-0.1, 0.0, 0.0,   # Front left leg
@@ -87,6 +151,41 @@ def stand_up(duration):
 
   movement_decomposition(motors_target_pos, duration)
 
+def fl_ground_contact(data):
+  if data == 0:
+      chattering_front_left_lower_leg_contact += 1
+      if chattering_front_left_lower_leg_contact > lim_chattering:
+          front_left_lower_leg_contact = 0
+  else:
+      front_left_lower_leg_contact = 1
+      chattering_front_left_lower_leg_contact = 0
+
+def fr_ground_contact(data):
+  if data == 0:
+      chattering_front_right_lower_leg_contact += 1
+      if chattering_front_right_lower_leg_contact > lim_chattering:
+          front_right_lower_leg_contact = 0
+  else:
+      front_right_lower_leg_contact = 1
+      chattering_front_right_lower_leg_contact = 0
+
+def rl_leg_contact(data):
+  if data == 0:
+      chattering_rear_left_lower_leg_contact += 1
+      if chattering_rear_left_lower_leg_contact > lim_chattering:
+          rear_left_lower_leg_contact = 0
+  else:
+      rear_left_lower_leg_contact = 1
+      chattering_rear_left_lower_leg_contact = 0
+
+def rr_ground_contact(data):
+  if data == 0:
+      chattering_rear_right_lower_leg_contact += 1
+      if chattering_rear_right_lower_leg_contact > lim_chattering:
+          rear_right_lower_leg_contact = 0
+  else:
+      rear_right_lower_leg_contact = 1
+      chattering_rear_right_lower_leg_contact = 0
 
 def step():
   # timestep = wb_robot_get_basic_time_step();
@@ -94,24 +193,74 @@ def step():
     # wb_robot_cleanup();
     # exit(0);
     pass
- 
+
+  spot_rot = spot_node.getField("rotation")
+  spot_rot_val = spot_rot.getSFRotation()
+  yaw_inst = spot_rot_val[2]
+
+def setMotorPositions(motors_target_pos):
+  for idx, motor in enumerate(motors):
+    motor.setPosition(motors_target_pos[idx] - motors_initial_pos[idx])
+
+def yaw_control():
+  """ Yaw body controller"""
+  yaw_target = YawControl
+  thr = np.pi / 2
+  if (yaw_target > thr and yaw_inst < -thr) or (yaw_inst > thr and yaw_target < -thr):
+    residual = (yaw_target - yaw_inst) * np.sign(yaw_target - yaw_inst) - 2 * np.pi
+    yawrate_d = 2.0 * np.sqrt(abs(residual)) * np.sign(residual)
+  else:
+    residual = yaw_target - yaw_inst
+    yawrate_d = 4.0 * np.sqrt(abs(residual)) * np.sign(residual)
+  return yawrate_d
+
+def spot_inverse_control(pos, orn):
+  # yaw controller
+  if YawControlOn == 1.0:
+    YawRate_desired = yaw_control()
+  else:
+    YawRate_desired = YawRate
+
+  # Update Swing Period
+  bzg.Tswing = SwingPeriod
+  contacts = [
+    front_left_lower_leg_contact,
+    front_right_lower_leg_contact,
+    rear_left_lower_leg_contact,
+    rear_right_lower_leg_contact
+  ]
+
+  # Get Desired Foot Poses
+  T_bf = bzg.GenerateTrajectory(StepLength, LateralFraction, YawRate_desired,
+                                      StepVelocity, T_bf0, T_bf,
+                                      ClearanceHeight, PenetrationDepth,
+                                      contacts)
+
+  joint_angles = -spot.IK(orn, pos, T_bf)
+
+  target = [
+    joint_angles[0][0], joint_angles[0][1], joint_angles[0][2],
+    joint_angles[1][0], joint_angles[1][1], joint_angles[1][2],
+    joint_angles[2][0], joint_angles[2][1], joint_angles[2][2],
+    joint_angles[3][0], joint_angles[3][1], joint_angles[3][2],
+  ]
+
+  setMotorPositions(target)
 
 # Main loop:
 # - perform simulation steps until Webots is stopping the controller
-while robot.step(timestep) != -1:
-    # Read the sensors:
-    # Enter here functions to read sensor data, like:
-    #  val = ds.getValue()
+while True:
+    #TODO: SET DESIRED POSE
+    pos = np.array([xd, yd, zd])
+    orn = np.array([rolld, pitchd, yawd])
 
-    # Process sensor data here.
+    # CHECK GROUND CONTACTS
+    fl_ground_contact(bool(touch_fl.getValue()))
+    fr_ground_contact(bool(touch_fr.getValue()))
+    rl_leg_contact(bool(touch_rl.getValue()))
+    rr_ground_contact(bool(touch_rr.getValue()))
 
-    # Enter here functions to send actuator commands, like:
-    #  motor.setPosition(10.0)
-    
-    
-    
-    # lie_down(4.0)
-    stand_up(4.0)
-    # lie_down(4.0)
+    # CALL INVERSE KINEMATIC CONTROL ON DESIRED POSE
+    spot_inverse_control(pos,orn)
 
-# Enter here exit cleanup code.
+    step()

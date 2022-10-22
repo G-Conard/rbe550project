@@ -78,15 +78,28 @@ class Sim:
 
     # ------------------ Inputs for Bezier Gait control ----------------
     self.yaw_d = 0.0
-    self.Step_Length = 0.0
-    self.Lateral_Fraction = 0.0
-    self.Yaw_Rate = 0.0
-    self.Step_Velocity = 0.0
-    self.Clearance_Height = 0.0
-    self.Penetration_Depth = 0.0
-    self.Swing_Period = 0.0
-    self.Yaw_Control = 0.0
-    self.Yaw_Control_On = False
+    self.SPEED=2.0
+    self.STEP_DIRECTION=1 #fwd:1; left/right:0.1
+    self.TURN=0.5
+    self.STEP_LENGTH = 0.024
+    self.LATERAL_FRACTION = 0.0
+    self.YAW_RATE = 0.0
+    self.STEP_VELOCITY = 0.01
+    self.CLEARANCE_HEIGHT = 0.024
+    self.PENETRATION_DEPTH = 0.003
+    self.SWING_PERIOD = 0.2
+    self.YAW_CONTROL = 0.0
+    self.YAW_CONTROL_ON = False
+    # self.yaw_d = 0.0
+    # self.STEP_LENGTH = 0.0
+    # self.LATERAL_FRACTION = 0.0
+    # self.YAW_RATE = 0.0
+    # self.STEP_VELOCITY = 0.0
+    # self.CLEARANCE_HEIGHT = 0.0
+    # self.PENETRATION_DEPTH = 0.0
+    # self.SWING_PERIOD = 0.0
+    # self.YAW_CONTROL = 0.0
+    # self.YAW_CONTROL_ON = False
 
     # ------------------ Outputs of Contact sensors ----------------
     self.legContacts = [1, 1, 1, 1]
@@ -153,30 +166,32 @@ class Sim:
 
   def yaw_control(self):
     """ Yaw body controller"""
-    yaw_target = self.Yaw_Control
+    yaw_target = self.YAW_CONTROL
     thr = np.pi / 2
     if (yaw_target > thr and self.yaw_dot < -thr) or (self.yaw_dot > thr and yaw_target < -thr):
       residual = (yaw_target - self.yaw_dot) * np.sign(yaw_target - self.yaw_dot) - 2 * np.pi
-      yawrate_d = 2.0 * np.sqrt(abs(residual)) * np.sign(residual)
+      yaw_rate_d = 2.0 * np.sqrt(abs(residual)) * np.sign(residual)
     else:
       residual = yaw_target - self.yaw_dot
-      yawrate_d = 4.0 * np.sqrt(abs(residual)) * np.sign(residual)
-    return yawrate_d
+      yaw_rate_d = 4.0 * np.sqrt(abs(residual)) * np.sign(residual)
+    return yaw_rate_d
 
   def inverse_control(self, pos, orn):
     # yaw controller
-    if self.Yaw_Control_On == 1.0:
-      YawRate_desired = self.yaw_control()
+    if self.YAW_CONTROL_ON == 1.0:
+      YAW_RATE_d = self.yaw_control()
     else:
-      YawRate_desired = self.Yaw_Rate
+      YAW_RATE_d = self.YAW_RATE
 
     # Update Swing Period
-    self.bzg.Tswing = self.Swing_Period
+    self.bzg.Tswing = self.SWING_PERIOD
 
     # Get Desired Foot Poses
-    T_bf = self.bzg.GenerateTrajectory(self.Step_Length, self.Lateral_Fraction, YawRate_desired,
-                                        self.Step_Velocity, self.T_bf0, self.T_bf,
-                                        self.Clearance_Height, self.Penetration_Depth,
+    step_length=self.STEP_LENGTH * self.STEP_DIRECTION * self.SPEED
+    yaw_rate=YAW_RATE_d * self.TURN
+    T_bf = self.bzg.GenerateTrajectory(step_length, self.LATERAL_FRACTION, yaw_rate,
+                                        self.STEP_VELOCITY, self.T_bf0, self.T_bf,
+                                        self.CLEARANCE_HEIGHT, self.PENETRATION_DEPTH,
                                         self.legContacts)
 
     joint_angles = -self.spotModel.IK(orn, pos, T_bf)
@@ -197,7 +212,7 @@ def main():
   # SIM LOOP
   while True:
     # SET DESIRED POSE
-    pos = np.array([0, 0, 0.3])
+    pos = np.array([0, 0, 0.1])
     orn = np.array([0, 0, 0])
 
     # CALL INVERSE CONTROL ON DESIRED POSE

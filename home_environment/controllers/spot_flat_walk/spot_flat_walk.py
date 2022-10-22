@@ -71,7 +71,6 @@ class Sim:
 
     ## Spot Control
     self.spotModel = SpotModel()
-    # spot_node=robot.getFromDef("Spot")
     self.T_bf0 = self.spotModel.WorldToFoot
     self.T_bf = copy.deepcopy(self.T_bf0)
     self.bzg = BezierGait(dt=self.TIME_STEP/1000)
@@ -90,39 +89,11 @@ class Sim:
     self.SWING_PERIOD = 0.2
     self.YAW_CONTROL = 0.0
     self.YAW_CONTROL_ON = False
-    # self.yaw_d = 0.0
-    # self.STEP_LENGTH = 0.0
-    # self.LATERAL_FRACTION = 0.0
-    # self.YAW_RATE = 0.0
-    # self.STEP_VELOCITY = 0.0
-    # self.CLEARANCE_HEIGHT = 0.0
-    # self.PENETRATION_DEPTH = 0.0
-    # self.SWING_PERIOD = 0.0
-    # self.YAW_CONTROL = 0.0
-    # self.YAW_CONTROL_ON = False
 
     # ------------------ Outputs of Contact sensors ----------------
     self.legContacts = [1, 1, 1, 1]
     self.chatteringLegContacts = [0, 0, 0, 0]
     self.CHATTERING_LIM = 4
-
-  # JOINT MOVEMENT DECOMPOSITION
-  def movement_decomposition(self, target, duration):
-    STEP_NUM = duration * 1000 / self.TIME_STEP
-    step_difference = []
-    current_position = []
-
-    for i in range(len(self.MOTOR_NAMES)):
-      current_position.append(self.motors[i].getTargetPosition())
-      step_difference.append((target[i] - current_position[i]) / STEP_NUM)
-    
-
-    for i in range(math.floor(STEP_NUM)):
-      for j in range(len(self.MOTOR_NAMES)):
-        current_position[j] += step_difference[j]
-        self.motors[j].setPosition(current_position[j])
-        
-      self.step()
 
   def lie_down(self, duration):
     self.MOTORS_TARGET_POS= [-0.40, -0.99, 1.59,   # Front left leg

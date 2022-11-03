@@ -2,238 +2,195 @@
 
 # You may need to import some classes of the controller module. Ex:
 #  from controller import Robot, Motor, DistanceSensor
-from controller import Robot, Motor, Camera, LED, Lidar
+from controller import Supervisor, Motor, Camera, LED, Lidar
 import math, copy
 import numpy as np
+
 from SpotKinematics import SpotModel
 from Bezier import BezierGait
 
-# create the Robot instance.
-robot = Robot()
+class Sim:
+  def __init__(self):
+    # CREATE ROBOT INSTANCE
+    self.robot = Supervisor()
+    self.spot_node = self.robot.getFromDef("Spot")
 
-# get the time step of the current world.
-time_step = int(robot.getBasictime_step())
+    # get the time step of the current world.
+    self.TIME_STEP = int(self.robot.getBasicTimeStep())
 
-# Initialize the robot's information
-NUMBER_OF_JOINTS = 12
+    # INIT MOTORS
+    self.MOTOR_INITIAL_POS = [
+      0.001, -0.5185, 1.21,
+      0.001, -0.5185, 1.21,
+      0.001, -0.5185, 1.21,
+      0.001, -0.5185, 1.21,
+    ]
+    self.motors = []
+    self.MOTOR_NAMES = [
+      'front left shoulder abduction motor',  'front left shoulder rotation motor',  'front left elbow motor',
+      'front right shoulder abduction motor', 'front right shoulder rotation motor', 'front right elbow motor',
+      'rear left shoulder abduction motor',   'rear left shoulder rotation motor',   'rear left elbow motor',
+      'rear right shoulder abduction motor',  'rear right shoulder rotation motor',  'rear right elbow motor'];
+    for i in range(len(self.MOTOR_NAMES)):
+      self.motors.append(self.robot.getDevice(self.MOTOR_NAMES[i]))
+      self.motors[i].setPosition(self.MOTOR_INITIAL_POS[i])
+      self.motors[i].setPosition(0)
 
-# INIT MOTORS
-motors = [];
-motorNames = [
-  'front left shoulder abduction motor',  'front left shoulder rotation motor',  'front left elbow motor',
-  'front right shoulder abduction motor', 'front right shoulder rotation motor', 'front right elbow motor',
-  'rear left shoulder abduction motor',   'rear left shoulder rotation motor',   'rear left elbow motor',
-  'rear right shoulder abduction motor',  'rear right shoulder rotation motor',  'rear right elbow motor'];
-for i in range(12):
-    motors.append(robot.getDevice(motorNames[i]))
-    motors[i].setPosition(0)
-  
-# INIT CAMERAS
-cameras = []
-cameraNames = ['left head camera', 'right head camera', 'left flank camera', 'right flank camera', 'rear camera'];
-for i in range(5):
-    cameras.append(robot.getDevice(cameraNames[i]))
-    cameras[i].enable(2 * time_step)
+    # INIT CAMERAS
+    self.cameras = []
+    self.CAMERA_NAMES = ['left head camera', 'right head camera', 'left flank camera', 'right flank camera', 'rear camera']
+    for i in range(len(self.CAMERA_NAMES)):
+      self.cameras.append(self.robot.getDevice(self.CAMERA_NAMES[i]))
+      self.cameras[i].enable(2 * self.TIME_STEP)
 
-# INIT LEDs
-leds = []
-ledNames = ['left top led', 'left middle up led', 'left middle down led',
-            'left bottom led', 'right top led', 'right middle up led',
-            'right middle down led', 'right bottom led'];
-for i in range(8):
-    leds.append(robot.getDevice(ledNames[i]))
-    leds[i].set(1)
+    # INIT LEDs
+    self.leds = []
+    self.LED_NAMES = ['left top led', 'left middle up led', 'left middle down led',
+                'left bottom led', 'right top led', 'right middle up led',
+                'right middle down led', 'right bottom led']
+    for i in range(len(self.LED_NAMES)):
+      self.leds.append(self.robot.getDevice(self.LED_NAMES[i]))
+      self.leds[i].set(1)
 
-#TODO: ENABLE TOUCH SENSORS
+    # INIT LIDAR
+    self.lidar = []
+    self.LIDAR_NAME =['Velodyne Puck']
+    self.lidar.append(self.robot.getDevice(self.LIDAR_NAME[0]))
+    self.lidar[0].enable(self.TIME_STEP)
+    self.lidar[0].enablePointCloud()
+    self.LIDAR_RESOLUTION = self.lidar[0].getHorizontalResolution()
+    self.layers = self.lidar[0].getNumberOfLayers()
 
-## Spot Control
-# rate = __node.create_rate(100)
-# time_step = __robot.time_step
+    # INIT CONTACT SENSORS
+    self.touchSensors = []
+    self.TOUCH_SENSOR_NAMES = ['front left touch sensor','front right touch sensor',
+                              'rear left touch sensor','rear right touch sensor']
+    for i in range(len(self.TOUCH_SENSOR_NAMES)):
+      self.touchSensors.append(self.robot.getDevice(self.TOUCH_SENSOR_NAMES[i]))
+      self.touchSensors[i].enable(self.TIME_STEP)
 
-spot = SpotModel()
-T_bf0 = spot.WorldToFoot
-T_bf = copy.deepcopy(T_bf0)
-bzg = BezierGait(dt=time_step/1000)
-motors_initial_pos = []
+    ## Spot Control
+    self.spotModel = SpotModel()
+    self.T_bf0 = self.spotModel.WorldToFoot
+    self.T_bf = copy.deepcopy(self.T_bf0)
+    self.bzg = BezierGait(dt=self.TIME_STEP/1000)
 
-# ------------------ Inputs for Bezier Gait control ----------------
-xd = 0.0
-yd = 0.0
-zd = 0.1
-rolld = 0.0
-pitchd = 0.0
-yawd = 0.0
-StepLength = 0.0
-LateralFraction = 0.0
-YawRate = 0.0
-StepVelocity = 0.0
-ClearanceHeight = 0.0
-PenetrationDepth = 0.0
-SwingPeriod = 0.0
-YawControl = 0.0
-YawControlOn = False
+    # ------------------ Inputs for Bezier Gait control ----------------
+    self.yaw_d = 0.0
+    self.SPEED=2.0
+    self.STEP_DIRECTION=1 #fwd:1; left/right:0.1
+    self.TURN=0.5
+    self.STEP_LENGTH = 0.024
+    self.LATERAL_FRACTION = 0.0
+    self.YAW_RATE = 0.0
+    self.STEP_VELOCITY = 0.01
+    self.CLEARANCE_HEIGHT = 0.024
+    self.PENETRATION_DEPTH = 0.003
+    self.SWING_PERIOD = 0.2
+    self.YAW_CONTROL = 0.0
+    self.YAW_CONTROL_ON = False
 
-# ------------------ Spot states ----------------
-x_inst = 0.
-y_inst = 0.
-z_inst = 0.
-roll_inst = 0.
-pitch_inst = 0.
-yaw_inst = 0.
-search_index = -1
+    # ------------------ Outputs of Contact sensors ----------------
+    self.legContacts = [1, 1, 1, 1]
+    self.chatteringLegContacts = [0, 0, 0, 0]
+    self.CHATTERING_LIM = 4
 
-# ------------------ Outputs of Contact sensors ----------------
-fl_ground_contact = 1
-fr_ground_contact = 1
-rl_ground_contact = 1
-rr_ground_contact = 1
-chattering_fl_ground_contact = 0
-chattering_fr_ground_contact = 0
-chattering_rl_ground_contact = 0
-chattering_rr_ground_contact = 0
-lim_chattering = 4
+  def lie_down(self, duration):
+    self.MOTORS_TARGET_POS= [-0.40, -0.99, 1.59,   # Front left leg
+                        0.40,  -0.99, 1.59,   # Front right leg
+                        -0.40, -0.99, 1.59,   # Rear left leg
+                        0.40,  -0.99, 1.59]  # Rear right leg
+    self.movement_decomposition(self.MOTORS_TARGET_POS, duration)
 
-lidar = []
-lidarName =['Velodyne Puck']
-lidar.append(robot.getDevice(lidarName[0]))
-lidar[0].enable(time_step)
-lidar[0].enablePointCloud()
-resolution = lidar[0].getHorizontalResolution()
-layers = lidar[0].getNumberOfLayers()
+  def stand_up(self, duration):
+    self.MOTORS_TARGET_POS = [-0.1, 0.0, 0.0,   # Front left leg
+                        0.1,  0.0, 0.0,   # Front right leg
+                        -0.1, 0.0, 0.0,   # Rear left leg
+                        0.1,  0.0, 0.0]   # Rear right leg
 
-# Movement decomposition
-def movement_decomposition(target, duration):
-  n_steps_to_achieve_target = duration * 1000 / time_step
-  step_difference = []
-  current_position = []
+    self.movement_decomposition(self.MOTORS_TARGET_POS, duration)
 
-  for i in range(0,NUMBER_OF_JOINTS):
-    current_position.append(motors[i].getTargetPosition())
-    step_difference.append((target[i] - current_position[i]) / n_steps_to_achieve_target)
-  
-  for i in range(0, math.floor(n_steps_to_achieve_target)):
-    for j in range(0, NUMBER_OF_JOINTS):
-      current_position[j] += step_difference[j]
-      motors[j].setPosition(current_position[j])
-      # print(j,current_position[j])
-    step()
+  def ground_contacts(self):
+    for i in range(len(self.TOUCH_SENSOR_NAMES)):
+      if bool(self.touchSensors[i].getValue()) == 0:
+        self.chatteringLegContacts[i] += 1
+        if self.chatteringLegContacts[i] > self.CHATTERING_LIM:
+          self.legContacts[i] = 0
+      else:
+        self.legContacts[i] = 1
+        self.chatteringLegContacts[i] = 0
 
-def lie_down(duration):
-  motors_target_pos= [-0.40, -0.99, 1.59,   # Front left leg
-                      0.40,  -0.99, 1.59,   # Front right leg
-                      -0.40, -0.99, 1.59,   # Rear left leg
-                      0.40,  -0.99, 1.59]  # Rear right leg
-  movement_decomposition(motors_target_pos, duration)
+  def step(self):
+    if self.robot.step(self.TIME_STEP) == -1:
+      pass
 
-def stand_up(duration):
-  motors_target_pos = [-0.1, 0.0, 0.0,   # Front left leg
-                       0.1,  0.0, 0.0,   # Front right leg
-                       -0.1, 0.0, 0.0,   # Rear left leg
-                       0.1,  0.0, 0.0]   # Rear right leg
+    spot_rot = self.spot_node.getField("rotation")
+    spot_rot_val = spot_rot.getSFRotation()
+    self.yaw_dot = spot_rot_val[2]
 
-  movement_decomposition(motors_target_pos, duration)
+    # UPDATE GROUND CONTACTS
+    self.ground_contacts()
 
-#TODO: COMBINE MOVEMENTDECOMPOSITION() AND SETMOTORPOSITION()
-def setMotorPositions(motors_target_pos):
-    for idx, motor in enumerate(motors):
-        motor.setPosition(motors_target_pos[idx] - motors_initial_pos[idx])
+  def setMotorPositions(self, motors_target_pos):
+    for i, motor in enumerate(self.motors):
+      motor.setPosition(motors_target_pos[i] - self.MOTOR_INITIAL_POS[i])
 
-def spot_inverse_control(pos, orn):
-    # yaw controller
-    if YawControlOn == 1.0:
-        YawRate_desired = yaw_control()
+  def yaw_control(self):
+    """ Yaw body controller"""
+    yaw_target = self.YAW_CONTROL
+    thr = np.pi / 2
+    if (yaw_target > thr and self.yaw_dot < -thr) or (self.yaw_dot > thr and yaw_target < -thr):
+      residual = (yaw_target - self.yaw_dot) * np.sign(yaw_target - self.yaw_dot) - 2 * np.pi
+      yaw_rate_d = 2.0 * np.sqrt(abs(residual)) * np.sign(residual)
     else:
-        YawRate_desired = YawRate
+      residual = yaw_target - self.yaw_dot
+      yaw_rate_d = 4.0 * np.sqrt(abs(residual)) * np.sign(residual)
+    return yaw_rate_d
+
+  def inverse_control(self, pos, orn):
+    # yaw controller
+    if self.YAW_CONTROL_ON == 1.0:
+      YAW_RATE_d = self.yaw_control()
+    else:
+      YAW_RATE_d = self.YAW_RATE
 
     # Update Swing Period
-    bzg.Tswing = SwingPeriod
-    contacts = [fl_ground_contact, fr_ground_contact,
-                rl_ground_contact,rr_ground_contact]
+    self.bzg.Tswing = self.SWING_PERIOD
 
     # Get Desired Foot Poses
-    T_bf = bzg.GenerateTrajectory(StepLength, LateralFraction, YawRate_desired,
-                                        StepVelocity, T_bf0, T_bf,
-                                        ClearanceHeight, PenetrationDepth,
-                                        contacts)
-    joint_angles = -spot.IK(orn, pos, T_bf)
+    step_length=self.STEP_LENGTH * self.STEP_DIRECTION * self.SPEED
+    yaw_rate=YAW_RATE_d * self.TURN
+    T_bf = self.bzg.GenerateTrajectory(step_length, self.LATERAL_FRACTION, yaw_rate,
+                                        self.STEP_VELOCITY, self.T_bf0, self.T_bf,
+                                        self.CLEARANCE_HEIGHT, self.PENETRATION_DEPTH,
+                                        self.legContacts)
 
-    target = [
-        joint_angles[0][0], joint_angles[0][1], joint_angles[0][2],
-        joint_angles[1][0], joint_angles[1][1], joint_angles[1][2],
-        joint_angles[2][0], joint_angles[2][1], joint_angles[2][2],
-        joint_angles[3][0], joint_angles[3][1], joint_angles[3][2],
+    joint_angles = -self.spotModel.IK(orn, pos, T_bf)
+
+    motors_target_pos = [
+      joint_angles[0][0], joint_angles[0][1], joint_angles[0][2],
+      joint_angles[1][0], joint_angles[1][1], joint_angles[1][2],
+      joint_angles[2][0], joint_angles[2][1], joint_angles[2][2],
+      joint_angles[3][0], joint_angles[3][1], joint_angles[3][2],
     ]
 
-    if not motors_initial_pos:
-        motors_initial_pos = target
+    self.setMotorPositions(motors_target_pos)
 
-    setMotorPositions(target)
+# MAIN METHOD
+def main():
+  sim = Sim()
 
-# STEP THE SIMULATION
-def step():
-  if robot.step(time_step) == -1:
-    pass
-  
-  # TODO: INIT TOUCH SENSORS
-  # callback_fl_ground_contact(bool(touch_fl.getValue()))
-  # callback_fr_ground_contact(bool(touch_fr.getValue()))
-  # callback_rl_ground_contact(bool(touch_rl.getValue()))
-  # callback_rr_ground_contact(bool(touch_rr.getValue()))
+  # SIM LOOP
+  while True:
+    # SET DESIRED POSE
+    pos = np.array([0, 0, 0.1])
+    orn = np.array([0, 0, 0])
 
-  #TODO: MOVE THIS TO THE MAIN METHOD AND ADD STEP TO ACTIONS
-  pos = np.array([xd, yd, zd])
-  orn = np.array([rolld, pitchd, yawd])
-  spot_inverse_control(pos,orn)
+    # CALL INVERSE CONTROL ON DESIRED POSE
+    sim.inverse_control(pos,orn)
 
-def fl_ground_contact(self, data):
-    if data == 0:
-        chattering_fl_ground_contact += 1
-        if chattering_fl_ground_contact > lim_chattering:
-            fl_ground_contact = 0
-    else:
-        fl_ground_contact = 1
-        chattering_fl_ground_contact = 0
+    # STEP THE SIMULATION FRWD
+    sim.step()
 
-def fr_ground_contact(self, data):
-    if data == 0:
-        chattering_fr_ground_contact += 1
-        if chattering_fr_ground_contact > lim_chattering:
-            fr_ground_contact = 0
-    else:
-        fr_ground_contact = 1
-        chattering_fr_ground_contact = 0
-
-def rl_ground_contact(self, data):
-    if data == 0:
-        chattering_rl_ground_contact += 1
-        if chattering_rl_ground_contact > lim_chattering:
-            rl_ground_contact = 0
-    else:
-        rl_ground_contact = 1
-        chattering_rl_ground_contact = 0
-
-def rr_ground_contact(self, data):
-    if data == 0:
-        chattering_rr_ground_contact += 1
-        if chattering_rr_ground_contact > lim_chattering:
-            rr_ground_contact = 0
-    else:
-        rr_ground_contact = 1
-        chattering_rr_ground_contact = 0
-
-# Main method
-if __name__=="__main__":
-  # - perform simulation steps until Webots is stopping the controller
-  while robot.step(time_step) != -1:
-      # Read the sensors:
-      # Enter here functions to read sensor data, like:
-      #  val = ds.getValue()
-
-      # Process sensor data here.
-
-      # Enter here functions to send actuator commands, like:
-      #  motor.setPosition(10.0)
-        
-      # lie_down(4.0)
-      stand_up(4.0)
-      # lie_down(4.0)
+if __name__=='__main__':
+  main()

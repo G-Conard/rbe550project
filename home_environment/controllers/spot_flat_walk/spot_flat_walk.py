@@ -110,7 +110,7 @@ while robot.step(timestep) != -1:
     
     
     
-    # lie_down(4.0)
+    lie_down(4.0)
     stand_up(4.0)
     # lie_down(4.0)
 

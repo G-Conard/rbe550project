@@ -6,7 +6,7 @@ from controller import Robot
 import sys
 
 # tell python to look for libraries in our python libraries folder
-# sys.path.insert(1, '../../../scripts')
+sys.path.insert(1, '../../scripts')
 from XboxController import XboxController
 xbox = XboxController()
 

@@ -1,4 +1,3 @@
-
 from threading import Thread
 from inputs import get_gamepad
 from sys import platform

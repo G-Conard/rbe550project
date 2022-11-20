@@ -9,11 +9,19 @@ import numpy as np
 from SpotKinematics import SpotModel
 from Bezier import BezierGait
 
+import sys
+sys.path.insert(1, '../../scripts')
+from XboxController import XboxController
+xbox = XboxController()
+
 class Sim:
   def __init__(self):
     # CREATE ROBOT INSTANCE
     self.robot = Supervisor()
     self.spot_node = self.robot.getFromDef("Spot")
+
+    # Initialize tool to get position of robot
+    self.trans_field = self.spot_node.getField("translation")
 
     # get the time step of the current world.
     self.TIME_STEP = int(self.robot.getBasicTimeStep())
@@ -76,13 +84,13 @@ class Sim:
     self.bzg = BezierGait(dt=self.TIME_STEP/1000)
 
     # ------------------ Inputs for Bezier Gait control ----------------
-    self.yaw_d = 0.0
+    self.yaw_d = -1.0
     self.SPEED=2.0
     self.STEP_DIRECTION=1 #fwd:1; left/right:0.1
-    self.TURN=0.5
+    self.TURN=0.0
     self.STEP_LENGTH = 0.024
     self.LATERAL_FRACTION = 0.0
-    self.YAW_RATE = 0.0
+    self.YAW_RATE = 1.0
     self.STEP_VELOCITY = 0.01
     self.CLEARANCE_HEIGHT = 0.024
     self.PENETRATION_DEPTH = 0.003
@@ -176,18 +184,100 @@ class Sim:
 
     self.setMotorPositions(motors_target_pos)
 
+def mapInput(speedInput, turnInput):
+  maxSpeed = 1.9
+  minSpeed = -1.9
+  diffScaleSpeed = maxSpeed - minSpeed
+  maxTurn = 0.6
+  minTurn = -0.6
+  diffScaleTurn = maxTurn - minTurn
+
+  maxInputSpeed = 1.0
+  minInputSpeed = -1.0
+  maxInputTurn = 1.0
+  minInputTurn = -1.0
+  diffInputSpeed = maxInputSpeed - minInputSpeed
+  diffInputTurn = maxInputTurn - minInputTurn
+
+  if abs(speedInput) >= 0.09:
+    mapSpeed = ((speedInput - minInputSpeed)*(diffScaleSpeed/diffInputSpeed)+minSpeed)
+  else:
+    mapSpeed = 0.0
+    
+  if abs(turnInput) >= 0.09:
+    mapTurn = ((-turnInput - minInputTurn)*(diffScaleTurn/diffInputTurn)+minTurn)
+  else:
+    mapTurn = 0.0
+  print(mapSpeed, mapTurn)
+
+  return mapSpeed, mapTurn
+
+def printInput():
+  print(xbox.RightTrigger,xbox.LeftTrigger,xbox.LeftX,xbox.LeftY)
+
 # MAIN METHOD
 def main():
   sim = Sim()
+  
+  #define simulation time variable (seconds)
+  t = 0
+  startTime = t
+  state = 0
 
   # SIM LOOP
   while True:
-    # SET DESIRED POSE
-    pos = np.array([0, 0, 0.1])
-    orn = np.array([0, 0, 0])
+    t+=float(sim.TIME_STEP)*1.0/1000
 
-    # CALL INVERSE CONTROL ON DESIRED POSE
-    sim.inverse_control(pos,orn)
+    now = t - startTime
+    
+    if state == 1:
+      print("State 1")
+      if not xbox.Start:
+        state = 2
+    elif state == 2:
+      print("State 2")
+      if xbox.Start:
+        # self.stand()
+        timeStamp = now
+        state = 3
+    elif state == 3:
+      print("State 3")
+      if not xbox.Start and now >= timeStamp + 1:
+        timeStamp = now
+        state = 4
+    elif state == 4:
+      print("State 4")
+      # stepDuration = 1
+      # self.walk(xbox = xbox, phase = (now - timeStamp) / stepDuration)
+      printInput()
+      # SET DESIRED POSE
+      localPos = np.array([0, 0.0, 0.0])
+      localOrn = np.array([0, 0, 0.0])
+      # print(sim.trans_field.getSFVec3f())
+      globalPos = sim.spot_node.getPosition()
+      globalOrn = sim.spot_node.getOrientation()
+      zAngle = math.atan2(globalOrn[3],globalOrn[0])
+      print(zAngle)
+
+      # CALL INVERSE CONTROL ON DESIRED POSE
+      sim.inverse_control(localPos,localOrn)
+      # sim.SPEED = 0.1
+      # sim.TURN = 0.5
+      sim.SPEED, sim.TURN = mapInput(xbox.LeftY, xbox.LeftX)
+      
+      
+      if xbox.Start:
+        state = 0
+    else:
+      print("\nPress START to continue.")
+      # self.home()
+      state = 1
+
+    if xbox.Select:
+      print("\nQuadruped Test Complete (Terminated by Xbox Controller).\n")
+      break
+      
+    
 
     # STEP THE SIMULATION FRWD
     sim.step()

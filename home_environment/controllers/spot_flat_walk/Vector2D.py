@@ -1,4 +1,4 @@
-from math import sqrt, cos, sin
+from math import sqrt, cos, sin, isinf
 from numpy import array
 
 class Vector2D:
@@ -35,6 +35,9 @@ class Vector2D:
         self.__dr=self.__magnitude*self.__direction
 
     def __update_DX_DY(self, dx, dy):
+        if isinf(abs(dx)):
+            dx = 1000000000000
+            dy = 1000000000000
         self.__dr = [dx, dy]
         if type(dx) == type(list()) and type(dy) == type(list()):
             self.__dr[0] = dy[0] - dx[0]
@@ -42,6 +45,7 @@ class Vector2D:
         
         self.__dr=array([dx, dy])
         self.__magnitude = sqrt(dx ** 2 + dy ** 2)
+        # print(self.__dr, self.__magnitude)
         if self.__magnitude > 0:
             self.__direction = (1/self.__magnitude)*self.__dr
         else:

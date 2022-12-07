@@ -2,12 +2,16 @@
 
 # You may need to import some classes of the controller module. Ex:
 #  from controller import Robot, Motor, DistanceSensor
-from controller import Supervisor, Motor, Camera, LED, Lidar
+from controller import Supervisor, Motor, Camera, CameraRecognitionObject, LED, Lidar
 import math, copy
 import numpy as np
 
 from SpotKinematics import SpotModel
 from Bezier import BezierGait
+
+from Vector2D import Vector2D
+from APF import APF
+
 
 import sys
 sys.path.insert(1, '../../scripts')
@@ -50,7 +54,13 @@ class Sim:
     for i in range(len(self.CAMERA_NAMES)):
       self.cameras.append(self.robot.getDevice(self.CAMERA_NAMES[i]))
       self.cameras[i].enable(2 * self.TIME_STEP)
-
+    
+    self.objectCams = []
+    self.OBJECT_CAMS_NAMES = ['FloorCamera']
+    self.objectCams.append(self.robot.getDevice(self.OBJECT_CAMS_NAMES[0]))
+    self.objectCams[0].enable(2*self.TIME_STEP)
+    self.objectCams[0].recognitionEnable(2*self.TIME_STEP)
+    
     # INIT LEDs
     self.leds = []
     self.LED_NAMES = ['left top led', 'left middle up led', 'left middle down led',
@@ -62,12 +72,21 @@ class Sim:
 
     # INIT LIDAR
     self.lidar = []
-    self.LIDAR_NAME =['Velodyne Puck']
-    self.lidar.append(self.robot.getDevice(self.LIDAR_NAME[0]))
+    # self.LIDAR_NAME =['Velodyne Puck']
+    # self.lidar.append(self.robot.getDevice(self.LIDAR_NAME[0]))
+    # self.lidar[0].enable(self.TIME_STEP)
+    # self.lidar[0].enablePointCloud()
+    # self.LIDAR_RESOLUTION = self.lidar[0].getHorizontalResolution()
+    # self.layers = self.lidar[0].getNumberOfLayers()
+    self.lidar.append(self.robot.getDevice('front top lidar'))
     self.lidar[0].enable(self.TIME_STEP)
     self.lidar[0].enablePointCloud()
-    self.LIDAR_RESOLUTION = self.lidar[0].getHorizontalResolution()
-    self.layers = self.lidar[0].getNumberOfLayers()
+    self.lidar.append(self.robot.getDevice('rear lidar'))
+    self.lidar[1].enable(self.TIME_STEP)
+    self.lidar[1].enablePointCloud()
+    self.lidar.append(self.robot.getDevice('front floor lidar'))
+    self.lidar[2].enable(self.TIME_STEP)
+    self.lidar[2].enablePointCloud()
 
     # INIT CONTACT SENSORS
     self.touchSensors = []
@@ -188,8 +207,8 @@ def mapInput(speedInput, turnInput):
   maxSpeed = 1.9
   minSpeed = -1.9
   diffScaleSpeed = maxSpeed - minSpeed
-  maxTurn = 0.6
-  minTurn = -0.6
+  maxTurn = np.pi/3
+  minTurn = -np.pi/3
   diffScaleTurn = maxTurn - minTurn
 
   maxInputSpeed = 1.0
@@ -212,12 +231,33 @@ def mapInput(speedInput, turnInput):
 
   return mapSpeed, mapTurn
 
+
+def unitVectorToScale(apfTurn):
+  maxTurn = 1.0
+  minTurn = -1.0
+  diffScaleTurn = maxTurn - minTurn
+
+  maxInputTurn = np.pi/3
+  minInputTurn = -np.pi/3
+  diffInputTurn = maxInputTurn - minInputTurn
+
+  psi = np.arcsin(apfTurn[1])
+    
+  
+  mapTurn = ((psi - minInputTurn)*(diffScaleTurn/diffInputTurn)+minTurn)
+  
+  # print(mapTurn)
+
+  return mapTurn
+
 def printInput():
   print(xbox.RightTrigger,xbox.LeftTrigger,xbox.LeftX,xbox.LeftY)
 
 # MAIN METHOD
 def main():
   sim = Sim()
+  apf = APF(500, 6000, 1)
+  angle = apf.fview(30,30)  # magnitudes of max to min angles (left to right)
   
   #define simulation time variable (seconds)
   t = 0
@@ -237,7 +277,6 @@ def main():
     elif state == 2:
       print("State 2")
       if xbox.Start:
-        # self.stand()
         timeStamp = now
         state = 3
     elif state == 3:
@@ -249,6 +288,20 @@ def main():
       print("State 4")
       # stepDuration = 1
       # self.walk(xbox = xbox, phase = (now - timeStamp) / stepDuration)
+      
+      imagen0 = sim.lidar[0].getRangeImage()
+      imagen1 = sim.lidar[1].getRangeImage()
+      imagen2 = sim.lidar[2].getRangeImage()
+      fronttop = apf.obstacles(imagen0,angle,2)
+      frontfloor = apf.obstacles(imagen2,angle,2)
+      reartop = apf.obstacles(imagen1,angle,2)
+      print('Front obstacles:','{}' .format(fronttop[0:8])) 
+      print('Front obstacles:','{}' .format(fronttop[250:258]))  
+      print('Front obstacles:','{}' .format(fronttop[503:511])) 
+      print(angle[0],angle[250],angle[511]) 
+      # print('Floor obstacles:','{}' .format(frontfloor[250:258]))  
+      # print('Rear obstacles:','{}' .format(reartop[0:8]))  
+      
       printInput()
       # SET DESIRED POSE
       localPos = np.array([0, 0.0, 0.0])
@@ -257,20 +310,24 @@ def main():
       globalPos = sim.spot_node.getPosition()
       globalOrn = sim.spot_node.getOrientation()
       zAngle = math.atan2(globalOrn[3],globalOrn[0])
-      print(zAngle)
+      # print(zAngle)
 
       # CALL INVERSE CONTROL ON DESIRED POSE
       sim.inverse_control(localPos,localOrn)
-      # sim.SPEED = 0.1
-      # sim.TURN = 0.5
-      sim.SPEED, sim.TURN = mapInput(xbox.LeftY, xbox.LeftX)
-      
+
+      # Adjust speed and turn rate based on joystick input and APF
+      sim.SPEED, psi = mapInput(xbox.LeftY, xbox.LeftX)
+      apfDirection = apf.plan(psi,fronttop)
+      print(apfDirection)
+      sim.TURN = unitVectorToScale(apfDirection)
+      print(sim.SPEED, sim.TURN)
+
+      # print(sim.objectCams[0].getRecognitionNumberOfObjects())
       
       if xbox.Start:
         state = 0
     else:
       print("\nPress START to continue.")
-      # self.home()
       state = 1
 
     if xbox.Select:

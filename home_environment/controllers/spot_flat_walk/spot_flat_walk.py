@@ -5,6 +5,7 @@
 from controller import Supervisor, Motor, Camera, CameraRecognitionObject, LED, Lidar
 import math, copy
 import numpy as np
+import csv
 
 from SpotKinematics import SpotModel
 from Bezier import BezierGait
@@ -227,7 +228,7 @@ def mapInput(speedInput, turnInput):
     mapTurn = ((-turnInput - minInputTurn)*(diffScaleTurn/diffInputTurn)+minTurn)
   else:
     mapTurn = 0.0
-  print(mapSpeed, mapTurn)
+  # print(mapSpeed, mapTurn)
 
   return mapSpeed, mapTurn
 
@@ -251,18 +252,20 @@ def unitVectorToScale(apfTurn):
   return mapTurn
 
 def printInput():
-  print(xbox.RightTrigger,xbox.LeftTrigger,xbox.LeftX,xbox.LeftY)
+  print("Speed Input: ", xbox.LeftY, "Turn Input: ", -xbox.LeftX)
 
 # MAIN METHOD
 def main():
   sim = Sim()
-  apf = APF(500, 6000, 1)
+  apf = APF(1000, 6000, 0.75)
   angle = apf.fview(30,30)  # magnitudes of max to min angles (left to right)
   
   #define simulation time variable (seconds)
   t = 0
   startTime = t
   state = 0
+  
+  dataArray = []
 
   # SIM LOOP
   while True:
@@ -283,46 +286,60 @@ def main():
       print("State 3")
       if not xbox.Start and now >= timeStamp + 1:
         timeStamp = now
+        runTime = 0
+        startTime = t
         state = 4
     elif state == 4:
-      print("State 4")
+      # print("State 4")
       # stepDuration = 1
       # self.walk(xbox = xbox, phase = (now - timeStamp) / stepDuration)
+      runTime = now
+      print(runTime)
       
       imagen0 = sim.lidar[0].getRangeImage()
       imagen1 = sim.lidar[1].getRangeImage()
       imagen2 = sim.lidar[2].getRangeImage()
-      fronttop = apf.obstacles(imagen0,angle,2)
-      frontfloor = apf.obstacles(imagen2,angle,2)
-      reartop = apf.obstacles(imagen1,angle,2)
-      print('Front obstacles:','{}' .format(fronttop[0:8])) 
-      print('Front obstacles:','{}' .format(fronttop[250:258]))  
-      print('Front obstacles:','{}' .format(fronttop[503:511])) 
-      print(angle[0],angle[250],angle[511]) 
+      frontTop = apf.obstacles(imagen0,angle,2)
+      frontFloor = apf.obstacles(imagen2,angle,2)
+      rearTop = apf.obstacles(imagen1,angle,2)
+      frontTopDist = apf.averageReading(frontTop)
+      # print('Front obstacles:','{}' .format(fronttop[0:8])) 
+      # print('Front obstacles:','{}' .format(fronttop[250:258]))  
+      # print('Front obstacles:','{}' .format(fronttop[503:511])) 
+      # print(angle[0],angle[250],angle[511]) 
       # print('Floor obstacles:','{}' .format(frontfloor[250:258]))  
       # print('Rear obstacles:','{}' .format(reartop[0:8]))  
       
-      printInput()
+      
       # SET DESIRED POSE
       localPos = np.array([0, 0.0, 0.0])
       localOrn = np.array([0, 0, 0.0])
-      # print(sim.trans_field.getSFVec3f())
-      globalPos = sim.spot_node.getPosition()
-      globalOrn = sim.spot_node.getOrientation()
-      zAngle = math.atan2(globalOrn[3],globalOrn[0])
+      # # print(sim.trans_field.getSFVec3f())
+      # globalPos = sim.spot_node.getPosition()
+      # globalOrn = sim.spot_node.getOrientation()
+      # zAngle = math.atan2(globalOrn[3],globalOrn[0])
       # print(zAngle)
 
       # CALL INVERSE CONTROL ON DESIRED POSE
       sim.inverse_control(localPos,localOrn)
 
       # Adjust speed and turn rate based on joystick input and APF
-      sim.SPEED, psi = mapInput(xbox.LeftY, xbox.LeftX)
-      apfDirection = apf.plan(psi,fronttop)
-      print(apfDirection)
+      v, psi = mapInput(xbox.LeftY, xbox.LeftX)
+      apfDirection = apf.plan(psi,frontTop)
+      print("APF Unit Vector:", apfDirection)
       sim.TURN = unitVectorToScale(apfDirection)
-      print(sim.SPEED, sim.TURN)
+      if frontTopDist < 0.5 and xbox.LeftY > 0:
+        sim.SPEED = 0
+      else:
+        sim.SPEED = v
+      printInput()
+      print("Speed Total:", sim.SPEED, "Turn Total:", sim.TURN)
 
       # print(sim.objectCams[0].getRecognitionNumberOfObjects())
+      
+      # Save data
+      # World position (x,y,z), mapped input speed (scalar), mapped input turn (scalar), adjusted heading from APF (radians), APF direction vector (x, y), adjusted speed (scalar), adjusted turn (scalar)
+      dataArray.append([*sim.spot_node.getPosition(), v, -xbox.LeftX, psi, *apfDirection, sim.SPEED, sim.TURN, runTime])
       
       if xbox.Start:
         state = 0
@@ -332,6 +349,11 @@ def main():
 
     if xbox.Select:
       print("\nQuadruped Test Complete (Terminated by Xbox Controller).\n")
+      print("Saving data...\n")
+      with open('dataFile','w') as f:
+        write = csv.writer(f)
+        write.writerows(dataArray)
+      print("Data saved! Terminating\n")  
       break
       
     

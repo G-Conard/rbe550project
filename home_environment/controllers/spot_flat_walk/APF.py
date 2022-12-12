@@ -26,6 +26,14 @@ class APF:
         # Calculate direction from sum of attractive and repulsive forces
         f_total = self.__attractive_force(psi) + self.__repulsive_force(obstacles)
         return f_total.getDirection()
+        
+    def averageReading(self, obstacles):
+        sum = 0
+        for obstacle in obstacles:
+            sum += obstacle.getMagnitude()
+        aveDistance = sum / len(obstacles)
+        
+        return aveDistance
 
     def cart2pol(self, x, y):
         # Convert from Cartesian coordinates (x and y) to polar coordinates (magnitude and direction)
@@ -52,7 +60,7 @@ class APF:
         list=[]
         if coor ==1:
             for i in range(0,512):
-                list.append(Vector2D(image[i], angle[i]))
+                list.append(Vector2D(None, None, image[i], angle[i]))
         if coor ==2:
             for i in range(0,512):
                 list.append(self.pol2cart(image[i], angle[i]))

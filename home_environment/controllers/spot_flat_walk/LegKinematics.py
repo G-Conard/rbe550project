@@ -1,4 +1,17 @@
 #!/usr/bin/env python
+
+"""
+RBE 550: Motion Planning
+Final Project
+
+Leg Kinematics
+Author: tarasborov
+Adapted from robotics_spot repository: https://github.com/SoftServeSAG/robotics_spot/blob/master/rs_inverse/scripts/LegKinematics.py
+
+December 15, 2022
+
+"""
+
 # https://www.researchgate.net/publication/320307716_Inverse_Kinematic_Analysis_Of_A_Quadruped_Robot
 import numpy as np
 

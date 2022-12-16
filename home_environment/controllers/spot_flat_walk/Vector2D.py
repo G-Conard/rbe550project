@@ -1,3 +1,14 @@
+"""
+RBE 550: Motion Planning
+Final Project
+
+Vector2D Class: creates a 2D vector with magnitude and direction information
+
+Authors: Timothy Jones
+December 15, 2022
+
+"""
+
 from math import sqrt, cos, sin, isinf
 from numpy import array
 

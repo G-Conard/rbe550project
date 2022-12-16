@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Dec  9 16:44:12 2022
 
-@author: vgrefa
 """
+RBE 550: Motion Planning
+Final Project
+
+Data Analysis: maps and plots
+
+Authors: Veronica Grefa
+December 15, 2022
+
+"""
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import math
@@ -27,9 +34,9 @@ for i in range(0,len(lines)):
     lines[i][3]=(float(new4[1]),float(new4[2]),float(new4[3]))
 
 #position(3), map input velocity (-1,1)(4), map turning(5), heading angle rad(6), apf direction(7-8), spot speed(9), sim turning(10)}
-# with open('data_analysis/wallAvoidance2.csv') as f:
+with open('data_analysis/wallAvoidance2.csv') as f:
 # with open('data_analysis/aptNav.csv') as f:
-with open('data_analysis/wallStop.csv') as f:
+# with open('data_analysis/wallStop.csv') as f:
     Wall = f.readlines()
 
 posx = []
@@ -63,10 +70,14 @@ plt.grid(color='grey', linestyle='-.', linewidth=0.5,which='both')
 
 plt.plot(time,mspeed)
 plt.plot(time,sspeed)
-plt.xlabel("Time [s]")
-plt.ylabel("Speed [scalar]")
-plt.legend(['Input Speed','Spot Speed'])
-plt.xlim([0, 9])
+plt.xlabel("Time [s]", fontsize=20)
+plt.ylabel("Speed [scalar]", fontsize=20)
+plt.legend(['Input Speed','Spot Speed'],fontsize=18)
+plt.xlim([0, 25])
+# plt.xlim([0, 250])
+# plt.xlim([0, 9])
+plt.xticks(fontsize = 15)
+plt.yticks(fontsize = 15)
 plt.show()
 
 fig, ax = plt.subplots(figsize =(16, 9))
@@ -74,12 +85,15 @@ plt.grid(color='grey', linestyle='-.', linewidth=0.5)
 
 plt.plot(time,mturning)
 plt.plot(time,sturning)
-plt.xlabel("Time [s]")
-plt.ylabel("Turning Rate [scalar]")
-plt.legend(['Input Turn Rate','Spot Turn Rate'])
-plt.xlim([0, 9])
+plt.xlabel("Time [s]", fontsize=20)
+plt.ylabel("Turning Rate [scalar]", fontsize=20)
+plt.legend(['Input Turn Rate','Spot Turn Rate'],fontsize=18)
+plt.xlim([0, 25])
+# plt.xlim([0, 250])
+# plt.xlim([0, 9])
 plt.ylim([-1.5, 1.5])
-
+plt.xticks(fontsize = 15)
+plt.yticks(fontsize = 15)
 plt.show()    
 
 fig, ax = plt.subplots(figsize =(16, 9))
@@ -87,11 +101,14 @@ plt.grid(color='grey', linestyle='-.', linewidth=0.5)
 
 plt.plot(time,hangle)
 plt.plot(time,forceangle)
-plt.xlabel("Time [s]")
-plt.ylabel("Angle [deg]")
-plt.legend(['Commanded Heading','APF Resultant Force Angle'])
-plt.xlim([0, 9])
-
+plt.xlabel("Time [s]", fontsize=20)
+plt.ylabel("Angle [deg]", fontsize=20)
+plt.legend(['Commanded Heading','APF Resultant Force Angle'],fontsize=18)
+plt.xlim([0, 25])
+# plt.xlim([0, 250])
+# plt.xlim([0, 9])
+plt.xticks(fontsize = 15)
+plt.yticks(fontsize = 15)
 plt.show() 
     
 fig, ax = plt.subplots(figsize =(16, 16))
@@ -142,5 +159,9 @@ for i in range(len(lines)):
     plt.ylim([-14, 4])
 
 plt.plot(posx,posy,color='red')
+plt.xlabel("X [m]", fontsize=20)
+plt.ylabel("Y [m]", fontsize=20)
+plt.xticks(fontsize = 15)
+plt.yticks(fontsize = 15)
 plt.show()    
     

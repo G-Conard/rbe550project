@@ -1,3 +1,14 @@
+"""
+RBE 550: Motion Planning
+Final Project
+
+APF Algorithm: Interprets obstacle locations from lidar and calculates resultant force unit vector
+
+Authors: Timothy Jones, Gabrielle Conard, Veronica Grefa
+December 15, 2022
+
+"""
+
 from Vector2D import Vector2D
 import numpy as np
 

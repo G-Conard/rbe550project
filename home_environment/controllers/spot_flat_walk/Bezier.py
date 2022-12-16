@@ -1,3 +1,15 @@
+"""
+RBE 550: Motion Planning
+Final Project
+
+Bezier Curve Foot Trajectory
+Author: tarasborov
+Adapted from robotics_spot repository: https://github.com/SoftServeSAG/robotics_spot/blob/master/rs_inverse/scripts/Bezier.py
+
+December 15, 2022
+
+"""
+
 import numpy as np
 from LieAlgebra import TransToRp
 import copy

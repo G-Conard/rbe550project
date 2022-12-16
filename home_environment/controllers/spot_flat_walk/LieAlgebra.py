@@ -1,4 +1,17 @@
 #!/usr/bin/env python
+
+"""
+RBE 550: Motion Planning
+Final Project
+
+Lie Algebra
+Author: tarasborov
+Adapted from robotics_spot repository: https://github.com/SoftServeSAG/robotics_spot/blob/master/rs_inverse/scripts/LieAlgebra.py
+
+December 15, 2022
+
+"""
+
 import numpy as np
 
 # NOTE: Code snippets from Modern Robotics at Northwestern University:

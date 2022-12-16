@@ -1,3 +1,14 @@
+"""
+RBE 550: Motion Planning
+Final Project
+
+Spot Kinematics Class
+Author: tarasborov
+Adapted from robotics_spot repository: https://github.com/SoftServeSAG/robotics_spot/blob/master/rs_inverse/scripts/SpotKinematics.py
+
+December 15, 2022
+
+"""
 import numpy as np
 from LegKinematics import LegIK
 from LieAlgebra import RpToTrans, TransToRp, TransInv, RPY, TransformVector

@@ -1,4 +1,13 @@
-"""xbox_controller controller."""
+"""
+RBE 550: Motion Planning
+Final Project
+
+Test script for using Xbox Controller class
+
+Authors: Gabrielle Conard
+December 15, 2022
+
+"""
 
 # You may need to import some classes of the controller module. Ex:
 #  from controller import Robot, Motor, DistanceSensor
